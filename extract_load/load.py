@@ -181,8 +181,7 @@ def main():
     credentials= get_config(filename='credentials.ini', section='motherduck')
     db_file='md:?motherduck_token='+credentials.get('md_token')
     db_name = credentials.get('db_name')
-    schema = get_config(filename='credentials.ini'
-                        , section='schema_receita_federal').get('schema')
+    schema = credentials.get('raw_schema_receita_federal')
     
     ingestion_process(zip_files_path, db_file, db_name, schema)
         

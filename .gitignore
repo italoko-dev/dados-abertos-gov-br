@@ -161,6 +161,5 @@ cython_debug/
 
 # Settings to project works 
 raw/
-settings.ini
 credentials.ini
 extract_load/teste.py
