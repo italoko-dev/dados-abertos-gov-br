@@ -1,6 +1,6 @@
 from configparser import ConfigParser
 
-def get_config(section, settings_path='extract_load', filename='settings.ini'):
+def get_config(section, settings_path='.', filename='settings.ini'):
 
     settings_file = f'{settings_path}/{filename}'
     # create a parser
