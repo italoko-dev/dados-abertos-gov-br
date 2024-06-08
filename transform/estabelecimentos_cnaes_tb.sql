@@ -1,6 +1,3 @@
-use dados_abertos_gov_br;
-create schema if not exists mart_receita_federal;
-
 create or replace table mart_receita_federal.estabelecimentos_cnaes_tb as (
   with
     estabelecimentos as (
@@ -8,9 +5,23 @@ create or replace table mart_receita_federal.estabelecimentos_cnaes_tb as (
         cnpj_basico
         , cnpj_ordem
         , cnpj_dv
-        , identificador_matriz_filial
+        , case when identificador_matriz_filial = 1 
+            then 'MATRIZ'
+            else 'FILIAL' 
+          end as identificador_matriz_filial
         , nome_fantasia
-        , situacao_cadastral
+        , case when situacao_cadastral = 1
+            then 'NULA'
+            when situacao_cadastral = 2
+            then 'ATIVA'
+            when situacao_cadastral = 3
+            then 'SUSPENSA'
+            when situacao_cadastral = 4
+            then 'INAPTA'
+            when situacao_cadastral = 8
+            then 'BAIXADA'
+          end 
+        as situacao_cadastral
         , data_situacao_cadastral
         , motivo_situacao_cadastral
         , nome_da_cidade_no_exterior
@@ -88,7 +99,15 @@ create or replace table mart_receita_federal.estabelecimentos_cnaes_tb as (
     , socios as ( 
       select 
         cast(cnpj_basico as int) as cnpj_basico
-        , identificador_de_socio
+        , case 
+          when identificador_de_socio = '1'
+            then 'PESSOA JURÍDICA'
+          when identificador_de_socio = '2'
+            then 'PESSOA FÍSICA'
+          when identificador_de_socio = '3'
+            then 'ESTRANGEIRO'
+          else 'OUTROS'
+        end as identificador_de_socio
         , nome_socio
         , cnpj_cpf_do_socio
         -- , qualificacao_do_socio
@@ -108,10 +127,22 @@ create or replace table mart_receita_federal.estabelecimentos_cnaes_tb as (
     , dados_simples as (
       select
         cnpj_basico
-        , opcao_pelo_simples
+        , case 
+            when upper(opcao_pelo_simples) = 'S' 
+              then 'SIM' 
+            when upper(opcao_pelo_simples) = 'N'
+              then 'NÃO'
+          else 'OUTROS' 
+        end as opcao_pelo_simples
         , data_opcao_pelo_simples
         , data_exclusao_do_simples
-        , opcao_pelo_mei
+        , case 
+            when upper(opcao_pelo_mei) = 'S' 
+              then 'SIM' 
+            when upper(opcao_pelo_mei) = 'N'
+              then 'NÃO'
+          else 'OUTROS' 
+        end as opcao_pelo_mei
         , data_opcao_pelo_mei
         , data_exclusao_do_mei
       from src_receita_federal.dados_do_simples
