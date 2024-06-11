@@ -13,32 +13,36 @@ def extract_csv_from_zip(zip_path, extract_to):
     Returns:
         list: A list of paths to the extracted CSV files.
     """
-    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-        file_name = zip_ref.namelist()[0]
+    try:
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            file_name = zip_ref.namelist()[0]
 
-        if file_name.endswith('.EMPRECSV'):
-            extract_to+='empresas'
-        elif file_name.endswith('.ESTABELE'):
-            extract_to+='estabelecimentos'
-        elif file_name.endswith('.SIMPLES.CSV.D40413'):
-            extract_to+='dados_do_simples'
-        elif file_name.endswith('.SOCIOCSV'):
-                extract_to+='socios'
-        elif file_name.endswith('.PAISCSV'):
-            extract_to+='paises'
-        elif file_name.endswith('.MUNICCSV'):
-            extract_to+='municipios'
-        elif file_name.endswith('.MOTICSV'):
-            extract_to+='motivo_situacao_cadastral'
-        elif file_name.endswith('.QUALSCSV'):
-            extract_to+='qualificacao_socio'
-        elif file_name.endswith('.NATJUCSV'):
-            extract_to+='natureza_juridica'
-        elif file_name.endswith('.CNAECSV'):
-            extract_to+='cnaes'
+            if file_name.endswith('.EMPRECSV'):
+                extract_to+='empresas'
+            elif file_name.endswith('.ESTABELE'):
+                extract_to+='estabelecimentos'
+            elif '.SIMPLES.CSV' in file_name:
+                extract_to+='dados_do_simples'
+            elif file_name.endswith('.SOCIOCSV'):
+                    extract_to+='socios'
+            elif file_name.endswith('.PAISCSV'):
+                extract_to+='paises'
+            elif file_name.endswith('.MUNICCSV'):
+                extract_to+='municipios'
+            elif file_name.endswith('.MOTICSV'):
+                extract_to+='motivo_situacao_cadastral'
+            elif file_name.endswith('.QUALSCSV'):
+                extract_to+='qualificacao_socio'
+            elif file_name.endswith('.NATJUCSV'):
+                extract_to+='natureza_juridica'
+            elif file_name.endswith('.CNAECSV'):
+                extract_to+='cnaes'
 
-        zip_ref.extractall(extract_to)
-        return [os.path.join(extract_to, f) for f in zip_ref.namelist() ]
+            zip_ref.extractall(extract_to)
+            return [os.path.join(extract_to, f) for f in zip_ref.namelist() ]
+    except Exception as e:
+        print(e)
+        return None
 
 def convert_zip_files_to_parquet(zip_files_path):
     """
@@ -60,42 +64,43 @@ def convert_zip_files_to_parquet(zip_files_path):
         Exception: If an error occurs during the conversion process.
     """
     print('\n-------------------------------------------')
-    extract_to = 'raw\\'
-    list_parquet_path = list()
-    zip_files = [f for f in os.listdir(zip_files_path) if f.endswith('.zip')]
-    try:
-    # List zip files in directory
-        for zip_file in zip_files:
-            zip_path = os.path.join(zip_files_path, zip_file)
+    if zip_files_path:
+        extract_to = 'raw\\'
+        list_parquet_path = list()
+        zip_files = [f for f in os.listdir(zip_files_path) if f.endswith('.zip')]
+        try:
+            for zip_file in zip_files:
+                zip_path = os.path.join(zip_files_path, zip_file)
 
-            csv_files = extract_csv_from_zip(zip_path, 'raw\\')
-            
-            for csv_file in csv_files:
+                csv_files = extract_csv_from_zip(zip_path, 'raw\\')
+                
+                for csv_file in csv_files:
+                    table = csv_file.split('\\')[1]
+                    if not os.path.isfile(csv_file+'.parquet'):
 
-                table = csv_file.split('\\')[1]
-                
-                header = get_config(section='header_files').get(table).split(',')
-                header = [x.strip() for x in header]
-            
-                print('CSV file: {}'.format(csv_file))
-                
-                pd.read_csv(csv_file, sep=';', encoding="latin-1", 
-                    low_memory=False, names=header).to_parquet(csv_file+'.parquet')
-                
-                print('Converted Parquet file: {}'.format(csv_file+'.parquet'))
-                
-                parquet_path = extract_to + table
-                if parquet_path not in list_parquet_path:
-                    list_parquet_path.append(parquet_path)
-                
-                os.remove(csv_file)
-                
-                print('-------------------------------------------')
-        print('Parquet files converted successfully!')
-        return list_parquet_path
-    except Exception as e:
-        print(e)
-        return None
+                        header = get_config(section='header_files').get(table).split(',')
+                        header = [x.strip() for x in header]
+                    
+                        print('Converting CSV file: {}'.format(csv_file))
+                        
+                        pd.read_csv(csv_file, sep=';', encoding="latin-1", 
+                            low_memory=False, names=header).to_parquet(csv_file+'.parquet')
+                        
+                        print('Converted Parquet file: {}'.format(csv_file+'.parquet'))
+                        print('-------------------------------------------')
+                    else:
+                        print('File already exists: {}'.format(csv_file))
+                        print('-------------------------------------------')
+                    parquet_path = extract_to + table
+                    if parquet_path not in list_parquet_path:
+                        list_parquet_path.append(parquet_path)
+                    
+                    os.remove(csv_file)
+            print('Parquet files converted successfully!')
+            return list_parquet_path
+        except Exception as e:
+            print(e)
+    return None
 
 def append_data_duckdb(dir_parquet_path, db_file='file.db',
     db_name = 'dados_abertos_gov_br', db_schema=None):
@@ -121,31 +126,33 @@ def append_data_duckdb(dir_parquet_path, db_file='file.db',
     Raises:
         Exception: If an error occurs during the append process.
     """
-    
-    with duckdb.connect(db_file) as con:
-        if db_name:
-            con.execute('use {}'.format(db_name))
-            print('\nUsing database: {}'.format(db_name))
-        print('Appending data to DuckDB...\n')
-        for parquet_path in dir_parquet_path:
-            table_name = parquet_path.split('\\')[1]
-            parquet_path += '\\*.parquet'
+    if dir_parquet_path:
+        with duckdb.connect(db_file) as con:
+            if db_name:
+                con.execute('use {}'.format(db_name))
+                print('\nUsing database: {}'.format(db_name))
+            print('Appending data to DuckDB...\n')
+            for parquet_path in dir_parquet_path:
+                table_name = parquet_path.split('\\')[1]
+                parquet_path += '\\*.parquet'
 
-            if db_schema:
-                table_name = db_schema+'.'+table_name
-            print('Append data to table: {}'.format(table_name))
+                if db_schema:
+                    table_name = db_schema+'.'+table_name
+                print('Append data to table: {}'.format(table_name))
 
-            q = f"""
-                create or replace table {table_name} as
-                select * from read_parquet('{parquet_path}')
-            """
-            try:
-                con.sql(q)
-                print('Success')
-                print('-------------------------------------------')
-            except Exception as e:
-                print(e)
-            
+                q = f"""
+                    create or replace table {table_name} as
+                    select * from read_parquet('{parquet_path}', union_by_name=True)
+                """
+                try:
+                    con.sql(q)
+                    print('Success')
+                    print('-------------------------------------------')
+                except Exception as e:
+                    print(e)
+    else:
+        print('Parquet files not found!')
+
 def ingestion_process(zip_files_path, db_file, db_name, schema):
     """
     Ingests data from zip files into a DuckDB database.
@@ -176,7 +183,7 @@ def ingestion_process(zip_files_path, db_file, db_name, schema):
         , db_schema=schema)
     
 def main():
-    zip_files_path = get_config(section='path_raw_files').get('receita_federal')
+    zip_files_path = get_config(section='path_files').get('receita_federal')
     
     credentials= get_config(filename='credentials.ini', section='motherduck')
     db_file='md:?motherduck_token='+credentials.get('md_token')
