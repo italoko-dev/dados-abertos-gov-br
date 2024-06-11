@@ -163,3 +163,4 @@ cython_debug/
 raw/
 credentials.ini
 extract_load/teste.py
+logs/
